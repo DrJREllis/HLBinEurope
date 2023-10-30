@@ -16,7 +16,7 @@ plotSingleInf.m - plots infection results from single simulations.
 plotSingleVec.m - plots vector dispersal results from single simulations.
 plotTimeSeries.m - plots a storyboard of the infection of a single simulation at 5 regular intervals.
 
-Additionally, text files will be saved in a 'ModelOutputs' directory:
+Additionally, text files will be saved in a 'ModelOutputs' directory (see README in the directory for more info):
 Inputs - The model parameters used for the simulation.
 Outputs - The number of cells/units in each compartment of the model at regular intervals.
 CellInfections - The status of each cell at the end of the simulation.
