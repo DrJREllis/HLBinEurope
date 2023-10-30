@@ -1,4 +1,4 @@
-# HLBinEurope  
+# Framework for modelling HLB in Europe
   
 Use HLBModelConfiguration.m to input parameters and run the model.  
   
