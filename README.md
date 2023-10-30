@@ -3,7 +3,7 @@
 Use HLBModelConfiguration.m to input parameters and run the model.  
   
 This will call the matlab function files:  
-HLB_model.m - called from HLBModelConfiguration.m, uses the input parameters to run the model multiple times. It calls teh remaining functions:  
+HLB_model.m - called from HLBModelConfiguration.m, uses the input parameters to run the model multiple times. It calls the remaining functions:  
 localArea.m - calculates the cells within the 'local area' (within the maximum radius of the local dispersal kernel), for each cell and calculates the local dispersal kernel.  
 nextEvent.m - generates the which event to occur and where, given the rates of all events, using the Gillespie algorithm.  
 updateRates.m - updates all event rates after the last event occured.  
