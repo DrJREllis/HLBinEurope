@@ -20,9 +20,13 @@ nexttile
 
 f=zeros(size(citMat));
 f(citMat>0)=100*sum(NrsdFin+NcomFin>0,3)/Nreps; f(ocean~=1) = nan;
+f(citMat>0) = max(f(citMat>0),100*0.006);
+f(ocean~=1) = nan;
 h=imagesc(f(:,end:-1:1)');
 set(h, 'AlphaData', h.CData>=0)
-% set(h, 'AlphaData', ~isnan(h.CData))
+tmp = [0.5 0.5 0.5]; % map color
+tmp2 = [0.7 0.7 0.7]; % citrus color
+mymap = [tmp; tmp2; jet(255)];     % my colormap
 colormap(mymap)
 c=colorbar;
 clim([0 100])
@@ -45,12 +49,16 @@ nexttile
 
 f=zeros(size(citMat));
 f(citMat>0)=mean(min(rsdVecTime,comVecTime),2,'omitnan')/365; f(ocean~=1) = nan;
+f(citMat>0) = max(f(citMat>0),6*0.005);
+f(ocean~=1) = nan;
 h=imagesc(f(:,end:-1:1)');
 set(h, 'AlphaData', h.CData>=0)
-% set(h, 'AlphaData', ~isnan(h.CData))
+tmp = [0.5 0.5 0.5]; % map color
+tmp2 = [0.7 0.7 0.7]; % citrus color
+mymap = [tmp; tmp2; jet(255)];     % my colormap
 colormap(mymap)
 c=colorbar;
-clim([0 tMax/365])
+clim([0 6])
 hold on
 xticks([]); yticks([]);
 plot(800:1000,ones(201,1)*900,'linewidth',3,'color','black')
@@ -89,10 +97,13 @@ nexttile
 
 f=zeros(size(citMat));
 f(citMat>0)=100*sum((IcomFin+IrsdFin+CcomFin+CrsdFin+EcomFin+ErsdFin)>0,3)/Nreps; f(isnan(f))=0;
+f(citMat>0) = max(f(citMat>0),100*0.0006);
 f(ocean~=1) = nan;
-h=imagesc( f(:,end:-1:1)');
+h=imagesc(f(:,end:-1:1)');
 set(h, 'AlphaData', h.CData>=0)
-% set(h, 'AlphaData', ~isnan(h.CData))
+tmp = [0.5 0.5 0.5]; % map color
+tmp2 = [0.7 0.7 0.7]; % citrus color
+mymap = [tmp; tmp2; jet(2550)];     % my colormap
 colormap(mymap)
 c=colorbar;
 clim([0 100])
@@ -115,18 +126,21 @@ nexttile
 
 f=zeros(size(citMat));
 f(citMat>0)=mean(min(rsdInfTime,comInfTime),2,'omitnan')/365; f(ocean~=1) = nan;
+f(citMat>0) = max(f(citMat>0),(tMax/365)*0.0005);
+f(ocean~=1) = nan;
 h=imagesc(f(:,end:-1:1)');
 set(h, 'AlphaData', h.CData>=0)
-% set(h, 'AlphaData', ~isnan(h.CData))
+tmp = [0.5 0.5 0.5]; % map color
+tmp2 = [0.7 0.7 0.7]; % citrus color
 colormap(mymap)
 c=colorbar;
 clim([0 tMax/365])
 hold on
 xticks([]); yticks([]);
-plot(800:1000,ones(201,1)*900,'linewidth',3,'color','black')
-plot(ones(31,1)*800,885:915,'linewidth',2,'color','black')
-plot(ones(31,1)*1000,885:915,'linewidth',2,'color','black')
-text(900,850,'200 km','HorizontalAlignment','center','interpreter','latex','FontSize',15)
+% plot(800:1000,ones(201,1)*900,'linewidth',3,'color','black')
+% plot(ones(31,1)*800,885:915,'linewidth',2,'color','black')
+% plot(ones(31,1)*1000,885:915,'linewidth',2,'color','black')
+% text(900,850,'200 km','HorizontalAlignment','center','interpreter','latex','FontSize',15)
 hold off
 % xlim([min(Ix1)-20, max(Ix1)+20])
 % ylim([min(gridY-Iy1)-20, max(gridY-Iy1)+20])
@@ -193,7 +207,7 @@ hold off
 % title('Total spread','interpreter','latex','FontSize',20)
 % xlim([0 t(tStep)/365])
 % ylim([0 0.3])
-hl=legend('Vector','Infected cells','Infected citrus','Location','northeast');
+hl=legend('Vector','Infected cells','Infected citrus','Location','northwest');
 % legend('Location','eastoutside')
 set(hl,'interpreter','latex','FontSize',18);
 ax = gca;

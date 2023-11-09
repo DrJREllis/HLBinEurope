@@ -1,5 +1,10 @@
-function [] = HLB_model(name,nRuns,nYrs,spyr,tStepMax,region,fullInfestation,infested0,infected0,delta,zeta,estRate,alphaLoc,maxDist,alphaLD,extV,m,p,...
-    beta,rho,lRate,sRate,extI,phi,UCrsd,UCcom,nInspCom,nInspRsd,nSamp,inspInt,detProb,complianceProb,stopAtDetection,mapFigure,multiFigure,individualFigures,nIndividualSimFigs )
+function [event,t,ArsdInt,AcomInt,NrsdInt,NcomInt,ErsdInt,EcomInt,CrsdInt,CcomInt,...
+    IrsdInt,IcomInt,RrsdInt] = HLB_model(name,nRuns,nYrs,spyr,tStepMax,region,fullInfestation,...
+    infested0,infected0,nInfected0,nInfested0,initInfNum,delta,zeta,estRate,...
+    alphaLoc,maxDist,alphaLD,extV,m0,p,beta,rho,lRate,sRate,extI,phi,UCrsd,...
+    UCcom,nInspCom,nInspRsd,nSamp,inspInt,detProb,complianceProb,roguingProb,...
+    chemicalIncrease,stopAtDetection,mapFigure,multiFigure,individualFigures,...
+    nIndividualSimFigs )
 
 
 load("Data/citrusMatrices.mat");
@@ -100,7 +105,7 @@ comCC =  ceil(climArray.*realComCit.*paraArray );
 rsdCC =  ceil(climArray.*realRsdCit.*paraArray );
 
 abnArray(isnan(abnArray)) = 0; orgArray(isnan(orgArray)) = 0;
-M = 1-(m*(1-(abnArray+orgArray)./realComCit) + (1-paraArray).*(abnArray+orgArray)./realComCit);
+M = 1-(m0*(1-(abnArray+orgArray)./realComCit) + (1-paraArray).*(abnArray+orgArray)./realComCit);
 
 adjNrsd = realRsdCit.*climArray.*paraArray./rsdCC; adjNrsd=max(0,adjNrsd); 
 adjNcom = realComCit.*climArray.*M./comCC; adjNcom=max(0,adjNcom); 
@@ -115,28 +120,34 @@ if not(isfolder("ModelOutputs"))
     mkdir("ModelOutputs")
 end
 InputLabel = ["nRuns"; "nYrs"; "spyr"; "tMax"; "tStepMax"; "No. of cells"; "delta"; "zeta"; "alphaLoc"; "maxDist"; "alphaLD"; "estRate"; "beta"; "rho"; "lRate"; "sRate"; "extV"; "extI"; "p"; "m"; "phi"];
-Inputs = [nRuns; nYrs; spyr; tMax; tStepMax; nCells; delta; zeta; alphaLoc; maxDist; alphaLD; estRate; beta; rho; lRate; sRate; extV; extI; p; m; phi];
-InputsTab = table(nRuns, nYrs, spyr, tMax, tStepMax, nCells, delta, zeta, alphaLoc, maxDist, alphaLD, estRate, beta, rho, lRate, sRate, extV, extI, p, m, phi);
+Inputs = [nRuns; nYrs; spyr; tMax; tStepMax; nCells; delta; zeta; alphaLoc; maxDist; alphaLD; estRate; beta; rho; lRate; sRate; extV; extI; p; m0; phi];
+InputsTab = table(nRuns, nYrs, spyr, tMax, tStepMax, nCells, delta, zeta, alphaLoc, maxDist, alphaLD, estRate, beta, rho, lRate, sRate, extV, extI, p, m0, phi);
 writetable(InputsTab,append('ModelOutputs/',name,'_Inputs.txt'),'Delimiter','tab')  
 
 Cell = (1:nCells)'; x=coord(:,1); y=coord(:,2);
 
+if isstring(infected0)
+infected0Indicator = infected0;
+end
+if isstring(infested0)
+infested0Indicator = infested0;
+end
 
 for k=1:nRuns
 tic
 
-if infected0 == "random"
- infected0= randsample(Cell(comArray>0),nInfected0); 
+if infected0Indicator == "random"
+ infected0= randsample(Cell(comArray>0),nInfected0,true,comArray(comArray>0)); 
 end
 
 if fullInfestation~=1
-if infested0 == "random"
+if infested0Indicator == "random"
     infested0 = randsample(Cell(comArray>0),nInfested0);
 
-else if infested0 == "current"
+else if infested0Indicator == "current"
     infested0=find(vecMat(citMat>0)==1); 
 
-else if infested0 == "galacia"
+else if infested0Indicator == "galacia"
     infested0 = infested0(coord(infested0,2)>835 & coord(infested0,1)<250); 
     infested0(randperm(size(infested0,1),size(infested0,1)-10)) = []; 
 end
@@ -159,7 +170,7 @@ latentRateRsd = zeros(nCells,1); latentRateCom = zeros(nCells,1);
 symptomRateRsd = zeros(nCells,1); symptomRateCom = zeros(nCells,1);
 lambdaVectorSumRsd = 0; lambdaVectorSumCom = extVCSum(end);
 lambdaInfectionSumRsd = 0; lambdaInfectionSumCom = extInfCSum(end);
-
+m = m0;
 
 
 if fullInfestation==1
@@ -203,7 +214,7 @@ if infected0~=0
 end
 
 
-t = zeros(1,tStepMax); event=nan(tStepMax,2);
+t{k} = zeros(1,tStepMax); event{k}=nan(tStepMax,2);
 
 
 ArsdInt(:,1,k) = Arsd; AcomInt(:,1,k) = Acom;
@@ -228,9 +239,10 @@ cellnum=zeros(10,1); xpos=zeros(10,1); ypos=zeros(10,1);
 
 firstInspection = rand*365*inspInt(1);
 complianceArray = binornd(1,complianceProb,length(comArray),1);
+tooLong = 0;
 
 %% Begin simulation
- while  t(tStep)<tMax && tStep<tStepMax
+ while  t{k}(tStep)<tMax && tStep<tStepMax
 
 
 
@@ -243,139 +255,187 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
 
 
     if tau > (nYrs+1)*365 || lambda<=0
-        tau=(nYrs+1)*365+1 - t(tStep);
-    end
+        tooLong = 1;
+        tau = (nYrs+1)*365;
+    end       
 
-    t(tStep+1) = t(tStep) + tau;
+    t{k}(tStep+1) = t{k}(tStep) + tau;
 
     % DETECTION:
     if firstDetection(k)==0
-        % If detection has not happened yet:
-        if floor((t(tStep+1)-firstInspection)/(365*inspInt(1))) - floor((t(tStep)-firstInspection)/(365*inspInt(1))) >0
-            
-            %For each inspection interval that has occured before the next event:
-            for i=1:floor((t(tStep+1)-firstInspection)/(365*inspInt(1))) - floor((t(tStep)-firstInspection)/(365*inspInt(1)))
-    
-                rsdInsp = randsample(Cell(rsdArray>0),min(sum(rsdArray>0),nInspRsd(1)));
-                comInsp = randsample(Cell(comArray>0),min(sum(comArray>0),nInspCom(1)));
-    
-                rsdFound = hygernd(rsdArray(rsdInsp),Irsd(rsdInsp),min(nSamp(1),rsdArray(rsdInsp)));
-                comFound = hygernd(comArray(comInsp),Icom(comInsp),min(nSamp(1),comArray(comInsp)));
-                rsdDetected = binornd(rsdFound,detProb);
-                comDetected = binornd(comFound,detProb);
-    
-                if sum(rsdDetected)+sum(comDetected)>0
-    
-                    firstDetection(k)=ceil((t(tStep)-firstInspection)/(365*inspInt(1)))*inspInt(1)*365+firstInspection + (i-1)*inspInt(1);
-                    detectionCitrusIncidence(k) = (sum(Icom) + sum(Ccom) + sum(Ecom))/sum(comArray);
-                    detectionCellIncidence(k) = (sum(Icom + Ccom + Ecom>0))/sum(comArray>0);
-                    t(tStep+1) = firstDetection(k);
-                    event(tStep,2) = 14;                    
-    
-                    % New inspection intervals
-                    inspInterval=inspInt(2);
-                    nSamples = nSamp(2);
-    
-                    if sum(rsdDetected)>0
-    
-                        event(tStep,1)=2;
-                        cellArray=rsdInsp(rsdDetected>0);
-                        cellArray = cellArray(complianceArray(cellArray)==1);
-    
-                        % Remove infected trees 
-                        Irsd(cellArray) = Irsd(cellArray) - rsdDetected(ismember(rsdInsp,cellArray));
-                        Rrsd(cellArray) = Rrsd(cellArray) + rsdDetected(ismember(rsdInsp,cellArray));
-                        
-                        % and update rates 
-                        cellArray=rsdInsp(rsdDetected>0);
-                        cellArray = cellArray(complianceArray(cellArray)==1);
-                        for c=1:length(cellArray)
-                            cell=cellArray(c);
-                            newR = rsdDetected(rsdInsp==cell);
-                            [forceInfectRsd,forceVectorRsd,longDistDispRsd,estabRsd,...
-                                latentRateRsd,symptomRateRsd,forceVectorCom,forceInfectCom,...
-                                lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom, rsdVecTime(:,k),rsdInfTime(:,k)] = ...
-                                updateRates(Nrsd,Ersd,Crsd,Irsd,Rrsd,newR,fullInfestation,forceInfectRsd,forceVectorRsd,0,M,...
-                                forceVectorCom,forceInfectCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom,...
-                                longDistDispRsd,estabRsd,longDistDispCom,0,0,extInfCSum,extVCSum,estabCom,...
-                                latentRateRsd,symptomRateRsd,latentRateCom,symptomRateCom,beta,localDispRate,longDispRate,estRate,lRate,sRate,rsdArray,adjNrsd,climArray,rsdCC,...
-                                comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
-                        end
-                    end
-    
-                    if sum(comDetected)>0
-    
-                        event(tStep,1)=2;
-                        cellArray=comInsp(comDetected>0);
-                        cellArray = cellArray(complianceArray(cellArray)==1);
-    
-                        % Remove infected trees 
-                        Icom(cellArray) = Icom(cellArray) - comDetected(ismember(comInsp,cellArray));
-                        Rcom(cellArray) = Rcom(cellArray) + comDetected(ismember(comInsp,cellArray));
-                        
-                        % and update rates 
-                        for c=1:length(cellArray)
-                            cell=cellArray(c);
-                            newR = comDetected(comInsp==cell);
-                            [forceInfectCom,forceVectorCom,longDistDispCom,estabCom,...
-                                latentRateCom,symptomRateCom,forceVectorRsd,forceInfectRsd,...
-                                lambdaInfectionSumCom,lambdaVectorSumCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,comVecTime(:,k),comInfTime(:,k)] = ...
-                                updateRates(Ncom,Ecom,Ccom,Icom,Rcom,newR,fullInfestation,forceInfectCom,forceVectorCom,1,M,...
-                                forceVectorRsd,forceInfectRsd,lambdaInfectionSumCom,lambdaVectorSumCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,...
-                                longDistDispCom,estabCom,longDistDispRsd,extInfCSum,extVCSum,0,0,estabRsd,...
-                                latentRateCom,symptomRateCom,latentRateRsd,symptomRateRsd,beta,localDispRate,longDispRate,estRate,lRate,sRate,...
-                                comArray,adjNcom,climArray,comCC,rsdCC,Nrsd,Ersd,Crsd,Irsd,Rrsd,rsdArray,...
-                                comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
-                        end
-                    end
-    
-    
-                    tStep=tStep+1;
-                    lambdaRsd = lambdaVectorSumRsd + lambdaInfectionSumRsd ;
-                    lambdaCom = lambdaVectorSumCom + lambdaInfectionSumCom ;
-                    lambda = lambdaRsd + lambdaCom;
-                    randNum=rand(2,1);
-                    tau = log(1./randNum(1)) ./ lambda;
-                    t(tStep+1) = t(tStep) + tau;
-            
+    if floor((t{k}(tStep+1)-firstInspection)/(365*inspInt(1))) - floor((t{k}(tStep)-firstInspection)/(365*inspInt(1))) >0
+        %For each inspection interval that has occured before the next event:
+        for i=1:floor((t{k}(tStep+1)-firstInspection)/(365*inspInt(1))) - floor((t{k}(tStep)-firstInspection)/(365*inspInt(1)))
+            event{k}(tStep,2)=15;
+            rsdInsp = randsample(Cell(rsdArray>0),min(sum(rsdArray>0),nInspRsd(1)));
+            comInsp = randsample(Cell(comArray>0),min(sum(comArray>0),nInspCom(1)));
+
+            % HOW TO MODEL SAMPLING, CAN UNITS BE REPEATED?
+            rsdFound = hygernd(rsdArray(rsdInsp),Irsd(rsdInsp),min(nSamp(1),rsdArray(rsdInsp)));
+            comFound = hygernd(comArray(comInsp),Icom(comInsp),min(nSamp(1),comArray(comInsp)));
+            rsdDetected = binornd(rsdFound,detProb);
+            comDetected = binornd(comFound,detProb);
+
+            if sum(rsdDetected)+sum(comDetected)>0
+
+               
+                firstDetection(k)=ceil((t{k}(tStep)-firstInspection)/(365*inspInt(1)))*inspInt(1)*365+firstInspection + (i-1)*inspInt(1);
+                detectionCitrusIncidence(k) = (sum(Icom) + sum(Ccom) + sum(Ecom))/sum(comArray);
+                detectionCellIncidence(k) = (sum(Icom + Ccom + Ecom>0))/sum(comArray>0);
+                t{k}(tStep+1) = firstDetection(k);
+                event{k}(tStep,2) = 14;                    
                 
+                rsdRogued = binornd(rsdDetected,roguingProb);
+
+                if sum(rsdRogued)>0
+
+                    event{k}(tStep,1)=1;
+                    cellArray=rsdInsp(rsdRogued>0);
+                    cellArray = cellArray(complianceArray(cellArray)==1);
+
+                    % Remove infected trees 
+                    Irsd(cellArray) = Irsd(cellArray) - rsdRogued(ismember(rsdInsp,cellArray));
+                    Rrsd(cellArray) = Rrsd(cellArray) + rsdRogued(ismember(rsdInsp,cellArray));
+                    
+                    % and update rates 
+                    cellArray=rsdInsp(rsdRogued>0);
+                    cellArray = cellArray(complianceArray(cellArray)==1);
+                    for c=1:length(cellArray)
+                        cell=cellArray(c);
+                        newR = rsdRogued(rsdInsp==cell);
+                    [forceInfectRsd,forceVectorRsd,longDistDispRsd,estabRsd,...
+                    latentRateRsd,symptomRateRsd,forceVectorCom,forceInfectCom,...
+                    lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom, rsdVecTime(:,k),rsdInfTime(:,k)] = ...
+                    updateRates(Nrsd,Ersd,Crsd,Irsd,Rrsd,newR,fullInfestation,forceInfectRsd,forceVectorRsd,0,M,...
+                    forceVectorCom,forceInfectCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom,...
+                    longDistDispRsd,estabRsd,longDistDispCom,0,0,extInfCSum,extVCSum,estabCom,...
+                    latentRateRsd,symptomRateRsd,latentRateCom,symptomRateCom,beta,localDispRate,longDispRate,estRate,lRate,sRate,rsdArray,adjNrsd,climArray,rsdCC,...
+                    comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
+                    end
                 end
+                    
+                comRogued = binornd(comDetected,roguingProb);
+
+                if sum(comRogued)>0
+
+                    event{k}(tStep,1)=2;
+                    cellArray=comInsp(comRogued>0);
+                    cellArray = cellArray(complianceArray(cellArray)==1);
+                    
+                    % Remove infected trees 
+                    Icom(cellArray) = Icom(cellArray) - comRogued(ismember(comInsp,cellArray));
+                    Rcom(cellArray) = Rcom(cellArray) + comRogued(ismember(comInsp,cellArray));
+                    
+                    % and update rates 
+                    for c=1:length(cellArray)
+                        cell=cellArray(c);
+                        newR = comRogued(comInsp==cell);
+                    [forceInfectCom,forceVectorCom,longDistDispCom,estabCom,...
+                    latentRateCom,symptomRateCom,forceVectorRsd,forceInfectRsd,...
+                    lambdaInfectionSumCom,lambdaVectorSumCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,comVecTime(:,k),comInfTime(:,k)] = ...
+                    updateRates(Ncom,Ecom,Ccom,Icom,Rcom,newR,fullInfestation,forceInfectCom,forceVectorCom,1,M,...
+                    forceVectorRsd,forceInfectRsd,lambdaInfectionSumCom,lambdaVectorSumCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,...
+                    longDistDispCom,estabCom,longDistDispRsd,extInfCSum,extVCSum,0,0,estabRsd,...
+                    latentRateCom,symptomRateCom,latentRateRsd,symptomRateRsd,beta,localDispRate,longDispRate,estRate,lRate,sRate,...
+                    comArray,adjNcom,climArray,comCC,rsdCC,Nrsd,Ersd,Crsd,Irsd,Rrsd,rsdArray,...
+                    comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
+                    end
+                end
+
+                if chemicalIncrease >0
+                    m = 1-(1-m)*(1-chemicalIncrease);
+                    M = 1-(m*(1-(abnArray+orgArray)./realComCit) + (1-paraArray).*(abnArray+orgArray)./realComCit);
+                    adjNcom = realComCit.*climArray.*M./comCC; adjNcom=max(0,adjNcom); 
+
+                    %UPDATE RATES
+                    longDistDispCom = longDistDispCom*(1-chemicalIncrease);
+
+
+                    for c=1:length(comArray)
+                        Scom = 1- Ecom-Ccom-Icom-Rcom;
+                        Srsd = 1- Ersd-Crsd-Irsd-Rrsd;
+                        if fullInfestation~=1
+                            %CHANGE:
+                            forceVectorCom(c) = forceVectorCom(c)- forceVectorCom(c)*chemicalIncrease*max(0,sum(Kd{c}.*Ncom(Fi{c}))/sum(Kd{c}.*(Ncom(Fi{c})+Nrsd(Fi{c})))) ;
+                            forceVectorRsd(c) = forceVectorRsd(c)- forceVectorRsd(c)*chemicalIncrease*max(0,sum(Kd{c}.*Ncom(Fi{c}))/sum(Kd{c}.*(Ncom(Fi{c})+Nrsd(Fi{c})))) ;
+                        end
+                        % CHECK THIS: divide the force of infection from com against force of infection from all
+                        forceInfectCom(c) = forceInfectCom(c)- forceInfectCom(c)*chemicalIncrease*max(0,(sum(Ki{c}.*(Icom(Fi{c})+Ccom(Fi{c})))/(sum(Ki{c}.*(Icom(Fi{c})+Ccom(Fi{c})+Irsd(Fi{c})+Ccom(Fi{c}))) )));
+                        forceInfectRsd(c) = forceInfectRsd(c)- forceInfectRsd(c)*chemicalIncrease*max(0,(sum(Ki{c}.*(Icom(Fi{c})+Ccom(Fi{c})))/(sum(Ki{c}.*(Icom(Fi{c})+Ccom(Fi{c})+Irsd(Fi{c})+Ccom(Fi{c}))) )));
+
+                    end
+                    lambdaVectorSumCom = sum(forceVectorCom) + sum(longDistDispCom) + extVCSum(end) + sum(estabCom);
+                    lambdaVectorSumRsd = sum(forceVectorRsd) + sum(longDistDispRsd) + sum(estabRsd);
+                    lambdaInfectionSumCom = sum(forceInfectCom) + extInfCSum(end) + sum(latentRateCom) + sum(symptomRateCom);
+                    lambdaInfectionSumRsd = sum(forceInfectRsd) + sum(latentRateRsd) + sum(symptomRateRsd);
+
+                end
+
+                if floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365)) >0
+                    for ii=1:floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365))
+                        intNum = floor(t{k}(tStep)*spyr/(365))+ii ;
+                        if intNum<=nYrs*spyr
+                            ArsdInt(:,intNum+1,k) = Arsd; AcomInt(:,intNum+1,k) = Acom;
+                            NrsdInt(:,intNum+1,k) = Nrsd; NcomInt(:,intNum+1,k) = Ncom;
+                            ErsdInt(:,intNum+1,k) = Ersd; EcomInt(:,intNum+1,k) = Ecom;
+                            CrsdInt(:,intNum+1,k) = Crsd; CcomInt(:,intNum+1,k) = Ccom;
+                            IrsdInt(:,intNum+1,k) = Irsd; IcomInt(:,intNum+1,k) = Icom;
+                            RrsdInt(:,intNum+1,k) = Rrsd; RcomInt(:,intNum+1,k) = Rcom;
+                        end
+                    end
+                end
+
+                tStep=tStep+1;
+                lambdaRsd = lambdaVectorSumRsd + lambdaInfectionSumRsd ;
+                lambdaCom = lambdaVectorSumCom + lambdaInfectionSumCom ;
+                lambda = lambdaRsd + lambdaCom;
+                randNum=rand(2,1);
+                tau = log(1./randNum(1)) ./ lambda;
+                if tau > (nYrs+1)*365 || lambda<=0
+                    tooLong = 1;
+                end       
+               
+                t{k}(tStep+1) = t{k}(tStep) + tau;
+        
             end
         end
+    end
     else 
         if firstDetection(k)>0
-            % If detection has already happened
-            if floor((t(tStep+1)-firstInspection)/(365*inspInt(2))) - floor((t(tStep)-firstInspection)/(365*inspInt(2))) >0
-                
+            if floor((t{k}(tStep+1)-firstInspection)/(365*inspInt(2))) - floor((t{k}(tStep)-firstInspection)/(365*inspInt(2))) >0
                 %For each inspection interval that has occured before the next event:
-                for i=1:floor((t(tStep+1)-firstInspection)/(365*inspInt(2))) - floor((t(tStep)-firstInspection)/(365*inspInt(2)))
-
+                for i=1:floor((t{k}(tStep+1)-firstInspection)/(365*inspInt(2))) - floor((t{k}(tStep)-firstInspection)/(365*inspInt(2)))
+                    event{k}(tStep,2)=15;
                     rsdInsp = randsample(Cell(rsdArray>0),min(sum(rsdArray>0),nInspRsd(2)));
                     comInsp = randsample(Cell(comArray>0),min(sum(comArray>0),nInspCom(2)));
         
-                    rsdFound = hygernd(rsdArray(rsdInsp)-Rrsd(rsdInsp),Irsd(rsdInsp),min(nSamp(2),comArray(rsdInsp)-Rrsd(rsdInsp)));
+                    % HOW TO MODEL SAMPLING, CAN UNITS BE REPEATED?
+                    rsdFound = hygernd(rsdArray(rsdInsp)-Rrsd(rsdInsp),Irsd(rsdInsp),min(nSamp(2),rsdArray(rsdInsp)-Rrsd(rsdInsp)));
                     comFound = hygernd(comArray(comInsp)-Rcom(comInsp),Icom(comInsp),min(nSamp(2),comArray(comInsp)-Rcom(comInsp)));
                     rsdDetected = binornd(rsdFound,detProb);
                     comDetected = binornd(comFound,detProb);
-                    if sum(rsdDetected)+sum(comDetected)>0
-                        
-                        t(tStep+1) = ceil((t(tStep)-firstInspection)/(365*inspInt(2)))*inspInt(2)*365+firstInspection + (i-1)*inspInt(2);
-                        event(tStep,2)=14;
-                        
-                        if sum(rsdDetected)>0
 
-                            event(tStep,1)=2;
-                            cellArray=rsdInsp(rsdDetected>0);
+                    rsdRogued = binornd(rsdDetected,roguingProb);
+                    comRogued = binornd(comDetected,roguingProb);
+                    if sum(rsdRogued)+sum(comRogued)>0
+                        
+                        t{k}(tStep+1) = ceil((t{k}(tStep)-firstInspection)/(365*inspInt(2)))*inspInt(2)*365+firstInspection + (i-1)*inspInt(2);
+                        event{k}(tStep,2)=14;
+                        
+                        if sum(rsdRogued)>0
+
+                            event{k}(tStep,1)=1;
+                            cellArray=rsdInsp(rsdRogued>0);
                             cellArray = cellArray(complianceArray(cellArray)==1);
 
                             % Remove infected trees 
-                            Irsd(cellArray) = Irsd(cellArray) - rsdDetected(ismember(rsdInsp,cellArray));
-                            Rrsd(cellArray) = Rrsd(cellArray) + rsdDetected(ismember(rsdInsp,cellArray));
+                            Irsd(cellArray) = Irsd(cellArray) - rsdRogued(ismember(rsdInsp,cellArray));
+                            Rrsd(cellArray) = Rrsd(cellArray) + rsdRogued(ismember(rsdInsp,cellArray));
                             
                             % and update rates 
                             for c=1:length(cellArray)
                                 cell=cellArray(c);
-                                newR = rsdDetected(rsdInsp==cell);
+                                newR = rsdRogued(rsdInsp==cell);
                             [forceInfectRsd,forceVectorRsd,longDistDispRsd,estabRsd,...
                             latentRateRsd,symptomRateRsd,forceVectorCom,forceInfectCom,...
                             lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom, rsdVecTime(:,k),rsdInfTime(:,k)] = ...
@@ -383,24 +443,24 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
                             forceVectorCom,forceInfectCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom,...
                             longDistDispRsd,estabRsd,longDistDispCom,0,0,extInfCSum,extVCSum,estabCom,...
                             latentRateRsd,symptomRateRsd,latentRateCom,symptomRateCom,beta,localDispRate,longDispRate,estRate,lRate,sRate,rsdArray,adjNrsd,climArray,rsdCC,...
-                            comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
+                            comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
                             end
                         end
         
-                        if sum(comDetected)>0
+                        if sum(comRogued)>0
 
-                            event(tStep,1)=2;
-                            cellArray=comInsp(comDetected>0);
+                            event{k}(tStep,1)=2;
+                            cellArray=comInsp(comRogued>0);
                             cellArray = cellArray(complianceArray(cellArray)==1);
 
                             % Remove infected trees 
-                            Icom(cellArray) = Icom(cellArray) - comDetected(ismember(comInsp,cellArray));
-                            Rcom(cellArray) = Rcom(cellArray) + comDetected(ismember(comInsp,cellArray));
+                            Icom(cellArray) = Icom(cellArray) - comRogued(ismember(comInsp,cellArray));
+                            Rcom(cellArray) = Rcom(cellArray) + comRogued(ismember(comInsp,cellArray));
                             
                             % and update rates 
                             for c=1:length(cellArray)
                                 cell=cellArray(c);
-                                newR = comDetected(comInsp==cell);
+                                newR = comRogued(comInsp==cell);
                             [forceInfectCom,forceVectorCom,longDistDispCom,estabCom,...
                             latentRateCom,symptomRateCom,forceVectorRsd,forceInfectRsd,...
                             lambdaInfectionSumCom,lambdaVectorSumCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,comVecTime(:,k),comInfTime(:,k)] = ...
@@ -409,10 +469,23 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
                             longDistDispCom,estabCom,longDistDispRsd,extInfCSum,extVCSum,0,0,estabRsd,...
                             latentRateCom,symptomRateCom,latentRateRsd,symptomRateRsd,beta,localDispRate,longDispRate,estRate,lRate,sRate,...
                             comArray,adjNcom,climArray,comCC,rsdCC,Nrsd,Ersd,Crsd,Irsd,Rrsd,rsdArray,...
-                            comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
+                            comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
+                            end
+
+                        end
+                        if floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365)) >0
+                            for ii=1:floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365))
+                                intNum = floor(t{k}(tStep)*spyr/(365))+ii ;
+                                if intNum<=nYrs*spyr
+                                    ArsdInt(:,intNum+1,k) = Arsd; AcomInt(:,intNum+1,k) = Acom;
+                                    NrsdInt(:,intNum+1,k) = Nrsd; NcomInt(:,intNum+1,k) = Ncom;
+                                    ErsdInt(:,intNum+1,k) = Ersd; EcomInt(:,intNum+1,k) = Ecom;
+                                    CrsdInt(:,intNum+1,k) = Crsd; CcomInt(:,intNum+1,k) = Ccom;
+                                    IrsdInt(:,intNum+1,k) = Irsd; IcomInt(:,intNum+1,k) = Icom;
+                                    RrsdInt(:,intNum+1,k) = Rrsd; RcomInt(:,intNum+1,k) = Rcom;
+                                end
                             end
                         end
-        
         
                         tStep=tStep+1;
                         lambdaRsd = lambdaVectorSumRsd + lambdaInfectionSumRsd ;
@@ -420,7 +493,10 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
                         lambda = lambdaRsd + lambdaCom;
                         randNum=rand(2,1);
                         tau = log(1./randNum(1)) ./ lambda;
-                        t(tStep+1) = t(tStep) + tau;
+                        t{k}(tStep+1) = t{k}(tStep) + tau;
+                        if tau > (nYrs+1)*365 || lambda<=0
+                            tooLong = 1;
+                        end       
                 
                     
                     end
@@ -430,24 +506,29 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
         end
     end
 
-    % Exit the loop if set to stop the simulation when detection first happens
-   if stopAtDetection==1 && firstDetection(k)>0
+   if (stopAtDetection==1 && firstDetection(k)>0) || tooLong==1
+        ArsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Arsd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); AcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Acom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
+        NrsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Nrsd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); NcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Ncom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
+        ErsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Ersd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); EcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Ecom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
+        CrsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Crsd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); CcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Ccom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
+        IrsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Irsd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); IcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Icom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
+        RrsdInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Rrsd*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365))); RcomInt(:,floor(t{k}(tStep)*spyr/(365))+1:nYrs*spyr+1,k) = Rcom*ones(1,nYrs*spyr+1-floor(t{k}(tStep)*spyr/(365)));
        break
    end
 
 % GENERATE NEXT STEP:
     if randNum(2)*lambda < lambdaRsd
-        event(tStep,1) = 1;
+        event{k}(tStep,1) = 1;
 
-        [Nrsd,Arsd,Ersd,Crsd,Irsd,Rrsd,Ncom,Acom,Ecom,cell,event(tStep,2)] = ...
+        [Nrsd,Arsd,Ersd,Crsd,Irsd,Rrsd,Ncom,Acom,Ecom,cell,event{k}(tStep,2)] = ...
             nextEvent(Nrsd,Arsd,Ersd,Crsd,Irsd,Rrsd,Ncom,Acom,Ecom,Ccom,Icom,Rcom,forceInfectRsd,forceVectorRsd,0,0,...
             lambdaInfectionSumRsd,lambdaVectorSumRsd,longDistDispRsd,estabRsd,latentRateRsd,symptomRateRsd,...
             alphaLD,rsdArray,comArray,rsdCC,comCC,climArray,m,0,coord,citNums,gridX,gridY,fullInfestation);
 
     else 
         if randNum(2)*lambda < lambdaRsd + lambdaCom
-            event(tStep,1) = 2;
-            [Ncom,Acom,Ecom,Ccom,Icom,Rcom,Nrsd,Arsd,Ersd,cell,event(tStep,2)] =...
+            event{k}(tStep,1) = 2;
+            [Ncom,Acom,Ecom,Ccom,Icom,Rcom,Nrsd,Arsd,Ersd,cell,event{k}(tStep,2)] =...
                 nextEvent(Ncom,Acom,Ecom,Ccom,Icom,Rcom,Nrsd,Arsd,Ersd,Crsd,Irsd,Rrsd,forceInfectCom,forceVectorCom,extInfCSum,extVCSum,...
                 lambdaInfectionSumCom,lambdaVectorSumCom,longDistDispCom,estabCom,latentRateCom,symptomRateCom,...
                 alphaLD,comArray,rsdArray,comCC,rsdCC,climArray,m,1,coord,citNums,gridX,gridY,fullInfestation);
@@ -457,8 +538,8 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
     end
 
     % UPDATE RATES AFTER EVENT:
-    if event(tStep,2)>0
-        if (event(tStep,1)==1 && sum(event(tStep,2)-[5,6,7]==0)==0) || (event(tStep,1)==2 && sum(event(tStep,2)-[5,6,7]==0)>0)
+    if event{k}(tStep,2)>0
+        if (event{k}(tStep,1)==1 && sum(event{k}(tStep,2)-[5,6,7]==0)==0) || (event{k}(tStep,1)==2 && sum(event{k}(tStep,2)-[5,6,7]==0)>0)
 
 
        
@@ -469,10 +550,10 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
                 forceVectorCom,forceInfectCom,lambdaInfectionSumRsd,lambdaVectorSumRsd,lambdaInfectionSumCom,lambdaVectorSumCom,...
                 longDistDispRsd,estabRsd,longDistDispCom,0,0,extInfCSum,extVCSum,estabCom,...
                 latentRateRsd,symptomRateRsd,latentRateCom,symptomRateCom,beta,localDispRate,longDispRate,estRate,lRate,sRate,rsdArray,adjNrsd,climArray,rsdCC,...
-                comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
+                comCC,Ncom,Ecom,Ccom,Icom,Rcom,comArray,rsdVecTime(:,k),rsdInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
 
         else
-            if (event(tStep,1)==2 && sum(event(tStep,2)-[5,6,7]==0)==0) || (event(tStep,1)==1 && sum(event(tStep,2)-[5,6,7]==0)>0)
+            if (event{k}(tStep,1)==2 && sum(event{k}(tStep,2)-[5,6,7]==0)==0) || (event{k}(tStep,1)==1 && sum(event{k}(tStep,2)-[5,6,7]==0)>0)
             
 
                 [forceInfectCom,forceVectorCom,longDistDispCom,estabCom,...
@@ -483,7 +564,7 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
                     longDistDispCom,estabCom,longDistDispRsd,extInfCSum,extVCSum,0,0,estabRsd,...
                     latentRateCom,symptomRateCom,latentRateRsd,symptomRateRsd,beta,localDispRate,longDispRate,estRate,lRate,sRate,...
                     comArray,adjNcom,climArray,comCC,rsdCC,Nrsd,Ersd,Crsd,Irsd,Rrsd,rsdArray,...
-                    comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event(tStep,2),t(tStep+1));
+                    comVecTime(:,k),comInfTime(:,k),Fi,Kd,Ki,cell,event{k}(tStep,2),t{k}(tStep+1));
 
             end
         end
@@ -491,16 +572,16 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
 
 
     % Track number of infested and infected cells at each daily interval
-    if floor(t(tStep+1)) - floor(t(tStep))>0
-        numInfested{k}(floor(t(tStep+1))) = sum(Nrsd) + sum(Ncom);% + sum(Arsd) + sum(Acom);
-        citInfected{k}(floor(t(tStep+1))) = sum(Irsd) + sum(Icom) + sum(Crsd) + sum(Ccom) + sum(Ersd) + sum(Ecom) + sum(Rrsd) + sum(Rcom);
-        cellInfected{k}(floor(t(tStep+1))) = sum(Irsd+Icom+Crsd+Ccom+Ersd+Ecom>0) ;
+    if floor(t{k}(tStep+1)) - floor(t{k}(tStep))>0
+        numInfested{k}(floor(t{k}(tStep+1))) = sum(Nrsd) + sum(Ncom);% + sum(Arsd) + sum(Acom);
+        citInfected{k}(floor(t{k}(tStep+1))) = sum(Irsd) + sum(Icom) + sum(Crsd) + sum(Ccom) + sum(Ersd) + sum(Ecom) + sum(Rrsd) + sum(Rcom);
+        cellInfected{k}(floor(t{k}(tStep+1))) = sum(Irsd+Icom+Crsd+Ccom+Ersd+Ecom>0) ;
     end
 
     % Track individual status of cells at each interval (spyr - saves per year)
-    if floor(t(tStep+1)*spyr/(365)) - floor(t(tStep)*spyr/(365)) >0
-        for i=1:floor(t(tStep+1)*spyr/(365)) - floor(t(tStep)*spyr/(365))
-            intNum = floor(t(tStep)*spyr/(365))+i ;
+    if floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365)) >0
+        for i=1:floor(t{k}(tStep+1)*spyr/(365)) - floor(t{k}(tStep)*spyr/(365))
+            intNum = floor(t{k}(tStep)*spyr/(365))+i ;
             if intNum<=nYrs*spyr
                 ArsdInt(:,intNum+1,k) = Arsd; AcomInt(:,intNum+1,k) = Acom;
                 NrsdInt(:,intNum+1,k) = Nrsd; NcomInt(:,intNum+1,k) = Ncom;
@@ -520,15 +601,15 @@ complianceArray = binornd(1,complianceProb,length(comArray),1);
     tStep=tStep+1;
 end
 
-t=t(2:tStep); event=event(1:tStep-1,:);
-infEvent = event(ismember(event(:,2),[3,4,6,7,10,11,12,13]) ,:);
+t{k}=t{k}(2:tStep); event{k}=event{k}(1:tStep-1,:);
+infEvent = event{k}(ismember(event{k}(:,2),[3,4,6,7,10,11,12,13]) ,:);
 infEvent(ismember(infEvent(:,2),[3,4,6,7,10,11]) ,2) = 1;
 infEvent(infEvent(:,2)==12 ,2) = 2;
 infEvent(infEvent(:,2)==13 ,2) = 3;
-eventtime = t(ismember(event(:,2),[3,4,6,7,10,11,12,13]))'/365;
-cellnum = cellnum(ismember(event(:,2),[3,4,6,7,10,11,12,13]));
-ypos = ypos(ismember(event(:,2),[3,4,6,7,10,11,12,13]));
-xpos = xpos(ismember(event(:,2),[3,4,6,7,10,11,12,13]));
+eventtime = t{k}(ismember(event{k}(:,2),[3,4,6,7,10,11,12,13]))'/365;
+cellnum = cellnum(ismember(event{k}(:,2),[3,4,6,7,10,11,12,13]));
+ypos = ypos(ismember(event{k}(:,2),[3,4,6,7,10,11,12,13]));
+xpos = xpos(ismember(event{k}(:,2),[3,4,6,7,10,11,12,13]));
 if infected0>0
     eventtime=[zeros(length(infected0),1); eventtime];
     infEvent = [[2 1].*ones(length(infected0),1); infEvent];
@@ -549,7 +630,7 @@ if mod(k,1)==0
     disp(['Rep complete: ',num2str(k),', rep time = ',num2str(time/60),' mins'])
 end
 
-eventCount(:,:,k)=[hist(event(event(:,1)==1,2),-2:13)' hist(event(event(:,1)==2,2),-2:13)'];
+eventCount(:,:,k)=[hist(event{k}(event{k}(:,1)==1,2),-2:13)' hist(event{k}(event{k}(:,1)==2,2),-2:13)'];
 residentialOutputs(k,:) = [sum(Nrsd), sum(Nrsd>0), sum(Irsd), sum(Irsd>0), time, tStep];
 commercialOutputs(k,:) = [sum(Ncom), sum(Ncom>0), sum(Icom), sum(Icom>0), time, tStep];
 
@@ -605,20 +686,20 @@ end
 
 
 cellRsdOutputs = [[sum(NrsdInt(:,end,:)>0,3) sum(NrsdInt(:,end,:)+ArsdInt(:,end,:)>0,3)...
-    sum(IrsdInt(:,end,:)>0,3) sum(IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:)>0,3)]/nReps...
+    sum(IrsdInt(:,end,:)>0,3) sum(IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:)>0,3)]/nRuns...
     [mean(NrsdInt(:,end,:),3,'omitnan') mean(IrsdInt(:,end,:),3,'omitnan') mean(IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:),3,'omitnan')...
     mean(rsdVecTime,2,'omitnan') mean(rsdInfTime,2,'omitnan')]];
 cellComOutputs = [[sum(NcomInt(:,end,:)>0,3) sum(NcomInt(:,end,:)+AcomInt(:,end,:)>0,3)...
-    sum(IcomInt(:,end,:)>0,3) sum(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:)>0,3)]/nReps...
+    sum(IcomInt(:,end,:)>0,3) sum(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:)>0,3)]/nRuns...
     [mean(NcomInt(:,end,:),3,'omitnan') mean(IcomInt(:,end,:),3,'omitnan') mean(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:),3,'omitnan')...
     mean(comVecTime,2,'omitnan') mean(comInfTime,2,'omitnan')]];
 cellTotOutputs= [[sum(NcomInt(:,end,:)+NrsdInt(:,end,:)>0,3) sum(NcomInt(:,end,:)+AcomInt(:,end,:)+NrsdInt(:,end,:)+ArsdInt(:,end,:)>0,3)...
-    sum(IcomInt(:,end,:)+IrsdInt(:,end,:)>0,3) sum(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:)+IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:)>0,3)]/nReps...
+    sum(IcomInt(:,end,:)+IrsdInt(:,end,:)>0,3) sum(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:)+IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:)>0,3)]/nRuns...
     [mean(NcomInt(:,end,:)+NrsdInt(:,end,:),3,'omitnan') mean(IcomInt(:,end,:)+IrsdInt(:,end,:),3,'omitnan') mean(IcomInt(:,end,:)+CcomInt(:,end,:)+EcomInt(:,end,:)+IrsdInt(:,end,:)+CrsdInt(:,end,:)+ErsdInt(:,end,:),3,'omitnan')...
     mean(min(comVecTime,rsdVecTime),2,'omitnan') mean(min(comInfTime,rsdInfTime),2,'omitnan')]];
 cellOutputsTab = splitvars(table(Cell,x,y,cellTotOutputs,cellRsdOutputs,cellComOutputs));
 OutputsTab.Properties.VariableNames = ["Cell","x","y","Vrsd cells","V+A cells","I cells","I+C+L cells","Vcom","V+A","I","I+C+L"];
-writetable(cellOutputsTab,['ModelOutputs/',name,'_CellOutputs.txt'],'Delimiter','tab')  
+writetable(cellOutputsTab,append('ModelOutputs/',name,'_CellOutputs.txt'),'Delimiter','tab')  
  
 
 
@@ -626,33 +707,33 @@ writetable(cellOutputsTab,['ModelOutputs/',name,'_CellOutputs.txt'],'Delimiter',
 
 %% Plot figures
 
-if sum(mapFigure,multiFigure,individualFigures)>0
-if not(isfolder("Figures"))
-    mkdir("Figures")
-end
+if sum([mapFigure,multiFigure,individualFigures])>0
+    if not(isfolder("Figures"))
+        mkdir("Figures")
+    end
 end
 
 if mapFigure>0
-plotMaps(citMat,ocean,rsdArray,comArray,name);
+    plotMaps(citMat,ocean,rsdArray,comArray,name);
 end
 
 if multiFigure>0
-plotMultiTotals(citMat,ocean,rsdArray,comArray,NrsdInt(:,end,:),NcomInt(:,end,:),...
-    IrsdInt(:,end,:),IcomInt(:,end,:),ErsdInt(:,end,:),EcomInt(:,end,:),CrsdInt(:,end,:),CcomInt(:,end,:),...
-    nInf,citInf,cellInf,rsdInfTime,comInfTime,rsdVecTime,comVecTime,tMax,name)
+    plotMultiTotals(citMat,ocean,rsdArray,comArray,NrsdInt(:,end,:),NcomInt(:,end,:),...
+        IrsdInt(:,end,:),IcomInt(:,end,:),ErsdInt(:,end,:),EcomInt(:,end,:),CrsdInt(:,end,:),CcomInt(:,end,:),...
+        nInf,citInf,cellInf,rsdInfTime,comInfTime,rsdVecTime,comVecTime,tMax,name)
+    plotMultiStoryboard(citMat,ocean,spyr,rsdArray,comArray,NrsdInt,NcomInt,...
+        IrsdInt,IcomInt,ErsdInt,EcomInt,CrsdInt,CcomInt,...
+        nInf,citInf,cellInf,rsdInfTime,comInfTime,rsdVecTime,comVecTime,tMax,name)
 end
 
 if individualFigures>0
-if not(isfolder("Figures/SingleSims"))
-    mkdir("Figures/SingleSims")
-end
-
-for k=1:min(nRuns,nIndividualSimFigs)
-plotTimeSeries(k,citMat,spyr,nYrs,rsdArray,comArray,ocean,ErsdInt(:,:,k),EcomInt(:,:,k),CrsdInt(:,:,k),CcomInt(:,:,k),...
-     IrsdInt(:,:,k),IcomInt(:,:,k),RrsdInt(:,:,k),RcomInt(:,:,k),name)
-plotSingleInf(k,citMat,spyr,nYrs,rsdArray,comArray,ocean,ErsdInt(:,:,k),EcomInt(:,:,k),CrsdInt(:,:,k),CcomInt(:,:,k),...
-    IrsdInt(:,:,k),IcomInt(:,:,k),RrsdInt(:,:,k),RcomInt(:,:,k),rsdInfTime(:,k),comInfTime(:,k),name)
-plotSingleVec(k,citMat,spyr,nYrs,realRsdCit,realComCit,adjNrsd,adjNcom,ocean,ArsdInt(:,:,k),NrsdInt(:,:,k),...
-    AcomInt(:,:,k),NcomInt(:,:,k),rsdVecTime(:,k),comVecTime(:,k),name)
-end
+    if not(isfolder("Figures/SingleSims"))
+        mkdir("Figures/SingleSims")
+    end
+    
+    for k=1:min(nRuns,nIndividualSimFigs)
+        plotStoryboard(k,citMat,spyr,nYrs,rsdArray,comArray,ocean,ErsdInt(:,:,k),EcomInt(:,:,k),CrsdInt(:,:,k),CcomInt(:,:,k),...
+             IrsdInt(:,:,k),IcomInt(:,:,k),RrsdInt(:,:,k),RcomInt(:,:,k),name)
+        plotVectorStoryboard(k,citMat,spyr,nYrs,rsdArray,comArray,ocean,NrsdInt(:,:,k),NcomInt(:,:,k),adjNrsd,adjNcom,name)
+    end
 end
