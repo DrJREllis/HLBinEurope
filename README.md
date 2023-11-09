@@ -12,9 +12,9 @@ There is an option to choose to generate figures in HLBModelConfiguration.m. If 
 These are created by the following functions:  
 plotMaps.m - plots maps of the landscape used for the simulations.  
 plotMultiTotals.m - plots averages from multiple simulations.  
-plotSingleInf.m - plots infection results from single simulations.  
-plotSingleVec.m - plots vector dispersal results from single simulations.  
-plotTimeSeries.m - plots a storyboard of the infection of a single simulation at 5 regular intervals.  
+plotStoryboard.m - plots a storyboard of the infection of a single simulation at 5 regular intervals.  
+plotVectorStoryboard.m - plots a storyboard of the vector infestation of a single simulation at 5 regular intervals.  
+plotMultiStoryboard.m - plots a storyboard of the infection from averages of multiple simulations at 5 regular intervals.  
   
 Additionally, text files will be saved in a 'ModelOutputs' directory (see README in the directory for more info):  
 Inputs - The model parameters used for the simulation.  
