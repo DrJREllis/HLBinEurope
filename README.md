@@ -8,9 +8,9 @@ localArea.m - calculates the cells within the 'local area' (within the maximum r
 nextEvent.m - generates the which event to occur and where, given the rates of all events, using the Gillespie algorithm.  
 updateRates.m - updates all event rates after the last event occured.  
 
-In the data folder is two files:
-citrusMatrices.mat - contains matrices of size 1136x1001 which indicate how much of each type of citrus is in each cell (total citrus, residential, commercial, abandoned, organic), the trends in citrus production and whether the vector is currently present.
-climateMatrix.mat - contains two matrices of size 1136x1001 which give the climate suitability for AfCP and ACP (note that we only use AfCP in the model so far and the calculation for ACP is a rough estimate).
+In the data folder is two files:  
+citrusMatrices.mat - contains matrices of size 1136x1001 which indicate how much of each type of citrus is in each cell (total citrus, residential, commercial, abandoned, organic), the trends in citrus production and whether the vector is currently present.  
+climateMatrix.mat - contains two matrices of size 1136x1001 which give the climate suitability for AfCP and ACP (note that we only use AfCP in the model so far and the calculation for ACP is a rough estimate).  
   
 There is an option to choose to generate figures in HLBModelConfiguration.m. If selected, the figures will be saved in a 'Figures' directory.
 These are created by the following functions:  
