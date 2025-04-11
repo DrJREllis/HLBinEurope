@@ -45,6 +45,8 @@ if isstring(region) || min(size(region)==[2,2])==1
     citMat = citMat(x(1):x(2),y(1):y(2));
     comMat = comMat(x(1):x(2),y(1):y(2));
     rsdMat = rsdMat(x(1):x(2),y(1):y(2));
+    abnMat = abnMat(x(1):x(2),y(1):y(2));
+    orgMat = orgMat(x(1):x(2),y(1):y(2));
     climMat = climMat(x(1):x(2),y(1):y(2));
     vecMat = vecMat(x(1):x(2),y(1):y(2));
 
