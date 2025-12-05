@@ -1,6 +1,6 @@
 function [N,A,E,C,I,R,Noth,Aoth,Eoth,cell,event] = nextEvent(N,A,E,C,I,R,Noth,Aoth,Eoth,Coth,Ioth,Roth,forceInfect,forceVector,...
     extInfCSum,extVCSum,lambdaInfectionSum,lambdaVectorSum,ldd,estab,latentRate,symptomRate,...
-    alphaLD,citArray,othArray,carrCap,othCC,climArray,m,comInd,coord,citNums,gridX,gridY,fullInfestation)
+    alphaLD,citArray,othArray,carrCap,othCC,climArray,M,comInd,coord,citNums,gridX,gridY,fullInfestation)
 % Function to generate the next event in the gillespie algorithm
 
 lambda = lambdaVectorSum + lambdaInfectionSum ;
@@ -26,29 +26,32 @@ if randLam < forceVCSum(end)
 else % LONG DISTANCE DISPERSAL
     if randLam < forceVCSum(end) + sum(ldd)
 
-        oCell = find(randNum(2)*sum(ldd)<cumsum(ldd),1); 
-        dist = trnd(3)*alphaLD;
-        angle = rand*pi;
-
-        movX = dist*cos(angle); %step length in x direction
-        movY = dist*sin(angle); %step length in y direction
-        Ix=coord(oCell,1); Iy=coord(oCell,2);
-
-        newX = Ix+round(movX); newY = Iy+round(movY);
-
-        if min(newX,newY)<=0 || newX>gridX || newY>gridY 
-            cell=nan;
-        else
-            cell=citNums(newX,newY);
+        onLS = false;
+        while(onLS == false)
+            oCell = find(randNum(2)*sum(ldd)<cumsum(ldd),1); 
+            dist = trnd(3)*alphaLD;
+            angle = rand*2*pi;
+    
+            movX = dist*cos(angle); %step length in x direction
+            movY = dist*sin(angle); %step length in y direction
+            Ix=coord(oCell,1); Iy=coord(oCell,2);
+    
+            newX = Ix+round(movX); newY = Iy+round(movY);
+    
+            if min(newX,newY)<=0 || newX>gridX || newY>gridY 
+                cell=nan;
+            else
+                onLS = true;
+                cell=citNums(newX,newY);
+            end
         end
-
         if ~isnan(cell) && citArray(cell)+othArray(cell)>0
 
             % SELECT THE TYPE OF HOST RANDOMLY
             hostType = rand<citArray(cell)/(othArray(cell)+citArray(cell));
 
             if hostType==1
-                survivalProb = climArray * max(m,(1-comInd));
+                survivalProb = climArray(cell) * max(M(cell),(1-comInd));
                 if rand<survivalProb
                     S=citArray-E-C-I-R;
         
@@ -83,7 +86,7 @@ else % LONG DISTANCE DISPERSAL
                 end
             else 
                 if hostType==0
-                    survivalProb = climArray * max(m,comInd);
+                    survivalProb = climArray(cell) * max(M(cell),comInd);
                     if rand<survivalProb
                         Soth=othArray-Eoth-Coth-Ioth-Roth;
                     if fullInfestation==1 

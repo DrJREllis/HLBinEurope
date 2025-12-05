@@ -2,20 +2,20 @@
 
 % KEY INPUTS
 name = 'test';  % Simulation name (used for saving output txt files and figures)
-nRuns = 10;      % Number of repeated simulations
-nYrs = 10;      % Length of simulation
-spyr = 1;       % Number of data save points per year
+nRuns = 100;      % Number of repeated simulations
+nYrs = 20;      % Length of simulation
+spyr = 12;       % Number of data save points per year
 tStepMax = 1e7; % Maximum number of time steps
 
 %FIGURES  - SET =1 IF FIGURES ARE REQUIRED
 mapFigure=0;                % Maps of the landscape
-multiFigure=0;              % Figures showing averages from multiple simulations
-individualFigures=0;        % Figures showing results from individual simulations
+multiFigure=1;              % Figures showing averages from multiple simulations
+individualFigures=1;        % Figures showing results from individual simulations
 nIndividualSimFigs = 1;     % number of individual simulation figures required
 
 % INITIAL CONDITIONS
 fullInfestation = 1; % Set the vector to be established everywhere
-initInfNum = 20; %Initially infected units of citrus
+initInfNum = 1; %Initially infected units of citrus
 nInfected0 = 1; % Number of cells infected
 nInfested0 = 1; % Number of cells infested
 
@@ -35,7 +35,7 @@ nInspCom = [1 100]; % percentage of commercial cells to sample
 nInspRsd = [0 0]; % percentage of residential cells to sample
 nSamp = [5 100]; % number of samples per cell
 inspInt = [1 1/2]; % Before and after the first detection
-detProb = 0.5;
+detProb = 0%0.5;
 complianceProb = 0.9;
 roguingProb = 0.9;
 chemicalIncrease = 0; %Proportion decrease of remaining vector pop 
@@ -50,7 +50,7 @@ region="valencia"
 
 
 % DISPERSAL PARAMETERS
-delta = 1600;               % DISPERSAL RATE
+delta = 1000;               % DISPERSAL RATE
 zeta = 1/1000;              % PROPORTION OF DISPERSALS THAT ARE LONG DISTANCE
 estRate=1/365;              % VECTOR ESTABLISHMENT RATE
 alphaLoc = 1.96;            % LOCAL DISPERSAL DISTANCE PARAMETER
@@ -62,7 +62,7 @@ p = 0.99;                   % POPULATION REDUCTION PARASITE PRESENCE
 
 % INFECTION PARAMETERS
 beta = 10;                  % INFECTION RATE
-rho = 0.7;                  % PROPORTION OF INFECTION WITHIN CELL
+rho = 0.4;                  % PROPORTION OF INFECTION WITHIN CELL
 lRate = 1/365;              % RATE OF TRANSITION FROM L->C
 sRate = 5/365;              % RATE OF TRANSITION FROM C->I
 extI = 0;                   % EXTERNAL INTRODUCTIONS OF INFECTED CITRUS per year
